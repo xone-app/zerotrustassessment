@@ -136,8 +136,10 @@ as
 	$database = Connect-Database -Path $dbPath -PassThru
 
 	trap {
+		Write-PSFMessage -Level Warning -Message "Error during database export: $_" -ErrorRecord $_ -Tag DatabaseExport
 		Disconnect-Database -Database $database
-		throw $_
+		# Continue execution instead of terminating - allows partial data to be processed
+		continue
 	}
 
 	if ($Pillar -in ('All', 'Identity')) {

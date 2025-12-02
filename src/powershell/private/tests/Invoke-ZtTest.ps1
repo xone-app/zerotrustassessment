@@ -69,9 +69,19 @@
 			$script:__ztCurrentTest = $Test
 
 			$result.Start = Get-Date
-			$result.Output = & $command @dbParam -ErrorAction Stop
+			# Use SilentlyContinue to prevent individual test failures from terminating the entire assessment
+			$result.Output = & $command @dbParam -ErrorAction SilentlyContinue -ErrorVariable testErrors
+			if ($testErrors) {
+				foreach ($err in $testErrors) {
+					Write-PSFMessage -Level Warning -Message "Non-fatal error in test '{0}': {1}" -StringValues $Test.TestID, $err.Exception.Message -Target $Test
+				}
+				# Mark as failed but don't throw - allows other tests to continue
+				$result.Success = $false
+				$result.Error = $testErrors | Select-Object -First 1
+			}
 		}
 		catch {
+			# This catch block handles any unexpected terminating errors
 			Write-PSFMessage -Level Warning -Message "Error executing test '{0}'" -StringValues $Test.TestID -Target $Test -ErrorRecord $_
 			$result.Success = $false
 			$result.Error = $_

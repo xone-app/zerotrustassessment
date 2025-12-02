@@ -128,15 +128,28 @@
 			switch ($Export.Type) {
 				PrivilegedGroup {
 					$exportParam = $Export | ConvertTo-PSFHashtable -ReferenceCommand Export-ZtGraphEntityPrivilegedGroup
-					$result.Output = Export-ZtGraphEntityPrivilegedGroup @exportParam -ExportPath $ExportPath -ErrorAction Stop
+					# Use SilentlyContinue to prevent 401/403 errors from terminating the entire assessment
+					$result.Output = Export-ZtGraphEntityPrivilegedGroup @exportParam -ExportPath $ExportPath -ErrorAction SilentlyContinue -ErrorVariable exportErrors
+					if ($exportErrors) {
+						foreach ($err in $exportErrors) {
+							Write-PSFMessage -Level Warning -Message "Non-fatal error during export '{0}': {1}" -StringValues $Export.Name, $err.Exception.Message -Target $Export
+						}
+					}
 				}
 				default {
 					$exportParam = $Export | ConvertTo-PSFHashtable -ReferenceCommand Export-ZtGraphEntity
-					$result.Output = Export-ZtGraphEntity @exportParam -ExportPath $ExportPath -ErrorAction Stop
+					# Use SilentlyContinue to prevent 401/403 errors from terminating the entire assessment
+					$result.Output = Export-ZtGraphEntity @exportParam -ExportPath $ExportPath -ErrorAction SilentlyContinue -ErrorVariable exportErrors
+					if ($exportErrors) {
+						foreach ($err in $exportErrors) {
+							Write-PSFMessage -Level Warning -Message "Non-fatal error during export '{0}': {1}" -StringValues $Export.Name, $err.Exception.Message -Target $Export
+						}
+					}
 				}
 			}
 		}
 		catch {
+			# This catch block handles any unexpected terminating errors
 			Write-PSFMessage -Level Warning -Message "Error executing export '{0}'" -StringValues $Export.Name -Target $Export -ErrorRecord $_
 			$workflow.Data[$Export.Name].Status = 'Failed'
 			$workflow.Data[$Export.Name].Updated = Get-Date
