@@ -1,4 +1,4 @@
-﻿function Invoke-ZtTenantDataExport {
+function Invoke-ZtTenantDataExport {
 	<#
 	.SYNOPSIS
 		Executes a single Entra export tasks as specified.
@@ -150,7 +150,17 @@
 		}
 		catch {
 			# This catch block handles any unexpected terminating errors
-			Write-PSFMessage -Level Warning -Message "Error executing export '{0}'" -StringValues $Export.Name -Target $Export -ErrorRecord $_
+			# Check if $_ is an ErrorRecord before passing to -ErrorRecord parameter
+			# When ErrorActionPreference is 'Stop', $_ may be an ActionPreferenceStopException instead
+			$errorParams = @{
+				Level = 'Warning'
+				Message = "Error executing export '{0}'" -f $Export.Name
+				Target = $Export
+			}
+			if ($_ -is [System.Management.Automation.ErrorRecord]) {
+				$errorParams['ErrorRecord'] = $_
+			}
+			Write-PSFMessage @errorParams
 			$workflow.Data[$Export.Name].Status = 'Failed'
 			$workflow.Data[$Export.Name].Updated = Get-Date
 			$workflow.Data[$Export.Name].Message = "$_"

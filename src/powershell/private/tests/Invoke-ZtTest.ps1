@@ -1,4 +1,4 @@
-﻿function Invoke-ZtTest {
+function Invoke-ZtTest {
 	<#
 	.SYNOPSIS
 		Execute individual tests and collect execution statistics.
@@ -82,7 +82,17 @@
 		}
 		catch {
 			# This catch block handles any unexpected terminating errors
-			Write-PSFMessage -Level Warning -Message "Error executing test '{0}'" -StringValues $Test.TestID -Target $Test -ErrorRecord $_
+			# Check if $_ is an ErrorRecord before passing to -ErrorRecord parameter
+			# When ErrorActionPreference is 'Stop', $_ may be an ActionPreferenceStopException instead
+			$errorParams = @{
+				Level = 'Warning'
+				Message = "Error executing test '{0}'" -f $Test.TestID
+				Target = $Test
+			}
+			if ($_ -is [System.Management.Automation.ErrorRecord]) {
+				$errorParams['ErrorRecord'] = $_
+			}
+			Write-PSFMessage @errorParams
 			$result.Success = $false
 			$result.Error = $_
 		}

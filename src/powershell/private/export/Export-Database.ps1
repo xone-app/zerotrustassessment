@@ -150,7 +150,15 @@ as
 				Import-EntraTable -Database $database -ExportPath $ExportPath -TableName $tableName
 			}
 			catch {
-				Write-PSFMessage -Level Warning -Message "Error importing table '$tableName': $_" -ErrorRecord $_ -Tag DatabaseExport
+				$errorParams = @{
+					Level = 'Warning'
+					Message = "Error importing table '$tableName': $_"
+					Tag = 'DatabaseExport'
+				}
+				if ($_ -is [System.Management.Automation.ErrorRecord]) {
+					$errorParams['ErrorRecord'] = $_
+				}
+				Write-PSFMessage @errorParams
 			}
 		}
 
@@ -158,7 +166,15 @@ as
 			New-ViewRole -Database $database
 		}
 		catch {
-			Write-PSFMessage -Level Warning -Message "Error creating role view: $_" -ErrorRecord $_ -Tag DatabaseExport
+			$errorParams = @{
+				Level = 'Warning'
+				Message = "Error creating role view: $_"
+				Tag = 'DatabaseExport'
+			}
+			if ($_ -is [System.Management.Automation.ErrorRecord]) {
+				$errorParams['ErrorRecord'] = $_
+			}
+			Write-PSFMessage @errorParams
 		}
 	}
 
@@ -167,7 +183,15 @@ as
 			Import-EntraTable -Database $database -ExportPath $ExportPath -TableName 'Device'
 		}
 		catch {
-			Write-PSFMessage -Level Warning -Message "Error importing Device table: $_" -ErrorRecord $_ -Tag DatabaseExport
+			$errorParams = @{
+				Level = 'Warning'
+				Message = "Error importing Device table: $_"
+				Tag = 'DatabaseExport'
+			}
+			if ($_ -is [System.Management.Automation.ErrorRecord]) {
+				$errorParams['ErrorRecord'] = $_
+			}
+			Write-PSFMessage @errorParams
 		}
 	}
 

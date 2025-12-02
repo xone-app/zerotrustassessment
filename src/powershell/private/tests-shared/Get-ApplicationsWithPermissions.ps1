@@ -85,7 +85,15 @@ order by spsi.lastSignInActivity.lastSignInDateTime
             $enrichedApps += $item
         }
         catch {
-            Write-PSFMessage "Error processing app $($item.displayName): $_" -Level Warning -ErrorRecord $_ -Tag Test
+            $errorParams = @{
+                Message = "Error processing app $($item.displayName): $_"
+                Level = 'Warning'
+                Tag = 'Test'
+            }
+            if ($_ -is [System.Management.Automation.ErrorRecord]) {
+                $errorParams['ErrorRecord'] = $_
+            }
+            Write-PSFMessage @errorParams
             continue
         }
     }
