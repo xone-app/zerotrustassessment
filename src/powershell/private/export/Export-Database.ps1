@@ -135,35 +135,42 @@ as
 
 	$database = Connect-Database -Path $dbPath -PassThru
 
-	trap {
-		Write-PSFMessage -Level Warning -Message "Error during database export: $_" -ErrorRecord $_ -Tag DatabaseExport
-		Disconnect-Database -Database $database
-		# Continue execution instead of terminating - allows partial data to be processed
-		continue
-	}
-
+	# Use try-catch for each table import to allow partial data collection
+	# If one table fails, continue with the others
 	if ($Pillar -in ('All', 'Identity')) {
-		Import-EntraTable -Database $database -ExportPath $ExportPath -TableName 'User'
-		Import-EntraTable -Database $database -ExportPath $ExportPath -TableName 'Application'
-		Import-EntraTable -Database $database -ExportPath $ExportPath -TableName 'ServicePrincipal'
-		Import-EntraTable -Database $database -ExportPath $ExportPath -TableName 'ServicePrincipalSignIn'
-		Import-EntraTable -Database $database -ExportPath $ExportPath -TableName 'SignIn'
-		Import-EntraTable -Database $database -ExportPath $ExportPath -TableName 'RoleDefinition'
-		Import-EntraTable -Database $database -ExportPath $ExportPath -TableName 'RoleAssignment'
-		Import-EntraTable -Database $database -ExportPath $ExportPath -TableName 'RoleAssignmentGroup'
-		Import-EntraTable -Database $database -ExportPath $ExportPath -TableName 'RoleAssignmentScheduleInstance'
-		Import-EntraTable -Database $database -ExportPath $ExportPath -TableName 'RoleAssignmentScheduleInstanceGroup'
-		Import-EntraTable -Database $database -ExportPath $ExportPath -TableName 'RoleEligibilityScheduleInstance'
-		Import-EntraTable -Database $database -ExportPath $ExportPath -TableName 'RoleEligibilityScheduleInstanceGroup'
-		Import-EntraTable -Database $database -ExportPath $ExportPath -TableName 'RoleManagementPolicyAssignment'
-		Import-EntraTable -Database $database -ExportPath $ExportPath -TableName 'UserRegistrationDetails'
+		$identityTables = @(
+			'User', 'Application', 'ServicePrincipal', 'ServicePrincipalSignIn',
+			'SignIn', 'RoleDefinition', 'RoleAssignment', 'RoleAssignmentGroup',
+			'RoleAssignmentScheduleInstance', 'RoleAssignmentScheduleInstanceGroup',
+			'RoleEligibilityScheduleInstance', 'RoleEligibilityScheduleInstanceGroup',
+			'RoleManagementPolicyAssignment', 'UserRegistrationDetails'
+		)
+		foreach ($tableName in $identityTables) {
+			try {
+				Import-EntraTable -Database $database -ExportPath $ExportPath -TableName $tableName
+			}
+			catch {
+				Write-PSFMessage -Level Warning -Message "Error importing table '$tableName': $_" -ErrorRecord $_ -Tag DatabaseExport
+			}
+		}
 
-		New-ViewRole -Database $database
+		try {
+			New-ViewRole -Database $database
+		}
+		catch {
+			Write-PSFMessage -Level Warning -Message "Error creating role view: $_" -ErrorRecord $_ -Tag DatabaseExport
+		}
 	}
 
 	if ($Pillar -in ('All', 'Devices')) {
-		Import-EntraTable -Database $database -ExportPath $ExportPath -TableName 'Device'
+		try {
+			Import-EntraTable -Database $database -ExportPath $ExportPath -TableName 'Device'
+		}
+		catch {
+			Write-PSFMessage -Level Warning -Message "Error importing Device table: $_" -ErrorRecord $_ -Tag DatabaseExport
+		}
 	}
 
+	# Always return the database, even if some imports failed
 	$database
 }
