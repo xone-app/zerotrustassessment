@@ -1,4 +1,4 @@
-﻿function Get-ZtTenant {
+function Get-ZtTenant {
 	<#
 	.SYNOPSIS
 		Retrieve information about the specified tenant.
@@ -24,7 +24,7 @@
     )
 
     try {
-        Invoke-ZtGraphRequest -Uri "beta/tenantRelationships/findTenantInformationByTenantId(tenantId='{$($TenantId)}')"
+        Invoke-ZtGraphRequest -RelativeUri "tenantRelationships/findTenantInformationByTenantId(tenantId='{$($TenantId)}')" -ApiVersion 'beta' -DisableBatching
     }
     catch {
         ""

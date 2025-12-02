@@ -136,14 +136,32 @@ function Get-ZtAppWithUnsafeRedirectUris {
 			$domain = $uri.Host
 
 			Write-ZtProgress -Activity 'Checking redirect uri' -Status $url
-			if ($resolvedDomainsCache.ContainsKey($domain)) {
-				$isDnsResolved = $resolvedDomainsCache[$domain]
-			}
-			else {
-				# Cache domain resolution results to avoid multiple DNS queries
-				$isDnsResolved = Test-DnsName -Name $domain
-				$resolvedDomainsCache[$domain] = $isDnsResolved
-			}
+            if ($resolvedDomainsCache.ContainsKey($domain)) {
+                $isDnsResolved = $resolvedDomainsCache[$domain]
+            }
+            else {
+                $isDnsResolved = $false
+                try {
+                    $dnsResult = Test-DnsName -Name $domain -ErrorAction Stop
+                    $isDnsResolved = $null -ne $dnsResult
+                }
+                catch [Management.Automation.CommandNotFoundException] {
+                    try {
+                        [System.Net.Dns]::GetHostEntry($domain) | Out-Null
+                        $isDnsResolved = $true
+                    }
+                    catch {
+                        Write-PSFMessage "DNS resolution failed for $domain using GetHostEntry: $($_.Exception.Message)" -Tag Test -Level Verbose
+                        $isDnsResolved = $false
+                    }
+                }
+                catch {
+                    Write-PSFMessage "DNS resolution failed for $domain : $($_.Exception.Message)" -Tag Test -Level Verbose
+                    $isDnsResolved = $false
+                }
+
+                $resolvedDomainsCache[$domain] = $isDnsResolved
+            }
 
 			if (-not $isDnsResolved) {
 				$riskyUrls += "$url"

@@ -1,4 +1,4 @@
-﻿
+
 <#
 .SYNOPSIS
 
@@ -35,7 +35,30 @@ function Test-Assessment-24546 {
 
     # Retrieve Mobile Device Management Policies
     $MDMPoliciesUri = "policies/mobileDeviceManagementPolicies"
-    $MDMPolicies = Invoke-ZtGraphRequest -RelativeUri $MDMPoliciesUri -ApiVersion beta
+    try {
+        $MDMPolicies = Invoke-ZtGraphRequest -RelativeUri $MDMPoliciesUri -ApiVersion beta
+    }
+    catch {
+        $statusCode = $null
+        $responseProperty = $_.Exception.PSObject.Properties['Response']
+        if ($responseProperty -and $responseProperty.Value) {
+            try {
+                $statusCode = [int]$responseProperty.Value.StatusCode
+            }
+            catch {
+                $statusCode = $null
+            }
+        }
+
+        $message = $_.Exception.Message
+        if ($statusCode -in 401, 403, 404 -or $message -like '*Unauthorized*' -or $message -like '*Forbidden*' -or $message -like '*Not Found*') {
+            Write-PSFMessage "Unable to query Intune policies: $message" -Tag Test -Level Warning
+            Add-ZtTestResultDetail -SkippedBecause NotLicensedIntune
+            return
+        }
+
+        throw
+    }
 
     # Convert to array if it's a single value to ensure consistent handling
     if ($null -eq $MDMPolicies) {

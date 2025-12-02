@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Intune Windows Update policy is configured and assigned
 #>
@@ -31,8 +31,31 @@ function Test-Assessment-24553 {
     Write-ZtProgress -Activity $activity
 
     # Retrieve all Windows Update Policies and their assignments
-    $windowsUpdatePolicy = Invoke-ZtGraphRequest -RelativeUri 'deviceManagement/deviceConfigurations?$expand=assignments' -ApiVersion beta | Where-Object {
-        $_.'@odata.type' -eq '#microsoft.graph.windowsUpdateForBusinessConfiguration'
+    try {
+        $windowsUpdatePolicy = Invoke-ZtGraphRequest -RelativeUri 'deviceManagement/deviceConfigurations?$expand=assignments' -ApiVersion beta | Where-Object {
+            $_.'@odata.type' -eq '#microsoft.graph.windowsUpdateForBusinessConfiguration'
+        }
+    }
+    catch {
+        $statusCode = $null
+        $responseProperty = $_.Exception.PSObject.Properties['Response']
+        if ($responseProperty -and $responseProperty.Value) {
+            try {
+                $statusCode = [int]$responseProperty.Value.StatusCode
+            }
+            catch {
+                $statusCode = $null
+            }
+        }
+
+        $message = $_.Exception.Message
+        if ($statusCode -in 401, 403, 404 -or $message -like '*Unauthorized*' -or $message -like '*Forbidden*' -or $message -like '*Not Found*') {
+            Write-PSFMessage "Unable to query Intune Windows Update policies: $message" -Tag Test -Level Warning
+            Add-ZtTestResultDetail -SkippedBecause NotLicensedIntune
+            return
+        }
+
+        throw
     }
     #endregion Data Collection
 

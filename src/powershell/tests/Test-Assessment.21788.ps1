@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
 
 #>
@@ -25,10 +25,17 @@ function Test-Assessment-21788 {
     Write-ZtProgress -Activity $activity -Status "Checking Azure connection"
 
     try {
-        $accessToken = Get-AzAccessToken -AsSecureString -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
+        $accessToken = Get-AzAccessToken -AsSecureString -ErrorAction Stop -WarningAction SilentlyContinue
     }
     catch [Management.Automation.CommandNotFoundException] {
         Write-PSFMessage $_.Exception.Message -Tag Test -Level Error
+        Add-ZtTestResultDetail -SkippedBecause NotConnectedAzure
+        return
+    }
+    catch {
+        Write-PSFMessage "Failed to acquire Azure access token: $($_.Exception.Message)" -Tag Test -Level Warning
+        Add-ZtTestResultDetail -SkippedBecause NotConnectedAzure
+        return
     }
 
     $passed = $false
@@ -41,21 +48,41 @@ function Test-Assessment-21788 {
     else {
         Write-ZtProgress -Activity $activity -Status "Getting role assignments"
 
-        $resourceManagementUrl = (Get-AzContext).Environment.ResourceManagerUrl
+        try {
+            $azContext = Get-AzContext -ErrorAction Stop
+        }
+        catch {
+            Write-PSFMessage "Azure context is not available: $($_.Exception.Message)" -Tag Test -Level Warning
+            Add-ZtTestResultDetail -SkippedBecause NotConnectedAzure
+            return
+        }
+
+        $resourceManagementUrl = $azContext.Environment.ResourceManagerUrl
         $azRoleAssignmentUri = $resourceManagementUrl + 'providers/Microsoft.Authorization/roleAssignments?$filter=atScope()&api-version=2022-04-01'
 
         try {
             $roleAssignments = Invoke-AzRestMethod -Method GET -Uri $azRoleAssignmentUri -ErrorAction Stop
         }
         catch {
-            if ($_.Exception.Response.StatusCode -eq 403 -or $_.Exception.Message -like "*403*" -or $_.Exception.Message -like "*Forbidden*") {
-                Write-PSFMessage "The signed in user does not have required access to the Azure subscription." -Level Verbose
+            $statusCode = $null
+            $responseProperty = $_.Exception.PSObject.Properties['Response']
+            if ($responseProperty -and $responseProperty.Value) {
+                $statusCode = [int]$responseProperty.Value.StatusCode
+            }
+
+            if ($statusCode -eq 401 -or $_.Exception.Message -like '*Authentication failed*' -or $_.Exception.Message -like '*Unauthorized*') {
+                Write-PSFMessage "Azure authentication failed for the current context: $($_.Exception.Message)" -Tag Test -Level Warning
+                Add-ZtTestResultDetail -SkippedBecause NotConnectedAzure
+                return
+            }
+
+            if ($statusCode -eq 403 -or $_.Exception.Message -like "*403*" -or $_.Exception.Message -like "*Forbidden*") {
+                Write-PSFMessage "The signed in user does not have required access to the Azure subscription." -Level Verbose -Tag Test
                 Add-ZtTestResultDetail -SkippedBecause NoAzureAccess
                 return
             }
-            else {
-                throw
-            }
+
+            throw
         }
 
         $results = ($roleAssignments.Content | ConvertFrom-Json).value.properties | Where-Object {

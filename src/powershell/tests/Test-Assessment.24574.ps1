@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Deploy Attack Surface Reduction Policies (ASR) policies for Windows devices
 #>
@@ -31,7 +31,30 @@ function Test-Assessment-24574 {
     Write-ZtProgress -Activity $activity
 
     # Query 1: Retrieve all configuration policies for Windows 10 that use MDM and Microsoft Defender (Sense), and filter for ASR rules
-    $win10MdmSensePolicies = Invoke-ZtGraphRequest -RelativeUri "deviceManagement/configurationPolicies?`$filter=(platforms has 'windows10') and (technologies has 'mdm' and technologies has 'microsoftSense')&`$expand=settings,assignments" -ApiVersion beta
+    try {
+        $win10MdmSensePolicies = Invoke-ZtGraphRequest -RelativeUri "deviceManagement/configurationPolicies?`$filter=(platforms has 'windows10') and (technologies has 'mdm' and technologies has 'microsoftSense')&`$expand=settings,assignments" -ApiVersion beta
+    }
+    catch {
+        $statusCode = $null
+        $responseProperty = $_.Exception.PSObject.Properties['Response']
+        if ($responseProperty -and $responseProperty.Value) {
+            try {
+                $statusCode = [int]$responseProperty.Value.StatusCode
+            }
+            catch {
+                $statusCode = $null
+            }
+        }
+
+        $message = $_.Exception.Message
+        if ($statusCode -in 401, 403, 404 -or $message -like '*Unauthorized*' -or $message -like '*Forbidden*' -or $message -like '*Not Found*') {
+            Write-PSFMessage "Unable to query Intune attack surface reduction policies: $message" -Tag Test -Level Warning
+            Add-ZtTestResultDetail -SkippedBecause NotLicensedIntune
+            return
+        }
+
+        throw
+    }
     $win10MdmSenseASRPolicies = $win10MdmSensePolicies.Where{
         $_.settings.settingInstance.settingDefinitionId -contains 'device_vendor_msft_policy_config_defender_attacksurfacereductionrules'
     }

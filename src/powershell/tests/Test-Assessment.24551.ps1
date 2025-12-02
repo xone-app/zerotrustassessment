@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Windows Hello for Business Policy is Configured and Assigned
 #>
@@ -31,10 +31,56 @@ function Test-Assessment-24551 {
     Write-ZtProgress -Activity $activity
 
     # Query 1: Retrieve assignment for Tenant wide Windows Hello for Business Configuration Policies
-    $windowsHelloTenantConfig = Invoke-ZtGraphRequest -RelativeUri "deviceManagement/deviceEnrollmentConfigurations?`$filter=deviceEnrollmentConfigurationType eq 'windowsHelloForBusiness'" -ApiVersion beta
+    try {
+        $windowsHelloTenantConfig = Invoke-ZtGraphRequest -RelativeUri "deviceManagement/deviceEnrollmentConfigurations?`$filter=deviceEnrollmentConfigurationType eq 'windowsHelloForBusiness'" -ApiVersion beta
+    }
+    catch {
+        $statusCode = $null
+        $responseProperty = $_.Exception.PSObject.Properties['Response']
+        if ($responseProperty -and $responseProperty.Value) {
+            try {
+                $statusCode = [int]$responseProperty.Value.StatusCode
+            }
+            catch {
+                $statusCode = $null
+            }
+        }
+
+        $message = $_.Exception.Message
+        if ($statusCode -in 401, 403, 404 -or $message -like '*Unauthorized*' -or $message -like '*Forbidden*' -or $message -like '*Not Found*') {
+            Write-PSFMessage "Unable to query Windows Hello for Business device enrollment configurations: $message" -Tag Test -Level Warning
+            Add-ZtTestResultDetail -SkippedBecause NotLicensedIntune
+            return
+        }
+
+        throw
+    }
 
     # Query 2: Retrieve assignment for Windows Hello for Business related MDM Policies
-    $windowsMdmPolicies = Invoke-ZtGraphRequest -RelativeUri "deviceManagement/configurationPolicies?`$filter=platforms has 'windows10' and technologies has 'mdm'&`$select=id,name,platforms,technologies&`$expand=assignments,settings" -ApiVersion beta
+    try {
+        $windowsMdmPolicies = Invoke-ZtGraphRequest -RelativeUri "deviceManagement/configurationPolicies?`$filter=platforms has 'windows10' and technologies has 'mdm'&`$select=id,name,platforms,technologies&`$expand=assignments,settings" -ApiVersion beta
+    }
+    catch {
+        $statusCode = $null
+        $responseProperty = $_.Exception.PSObject.Properties['Response']
+        if ($responseProperty -and $responseProperty.Value) {
+            try {
+                $statusCode = [int]$responseProperty.Value.StatusCode
+            }
+            catch {
+                $statusCode = $null
+            }
+        }
+
+        $message = $_.Exception.Message
+        if ($statusCode -in 401, 403, 404 -or $message -like '*Unauthorized*' -or $message -like '*Forbidden*' -or $message -like '*Not Found*') {
+            Write-PSFMessage "Unable to query Windows Hello for Business MDM policies: $message" -Tag Test -Level Warning
+            Add-ZtTestResultDetail -SkippedBecause NotLicensedIntune
+            return
+        }
+
+        throw
+    }
 
     # filter to only Windows Hello for Business related policies
     $windowsHelloMdmPolicies = $windowsMdmPolicies.Where{

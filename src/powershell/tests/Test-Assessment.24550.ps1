@@ -1,4 +1,4 @@
-﻿
+
 <#
 .SYNOPSIS
 
@@ -57,7 +57,30 @@ function Test-Assessment-24550 {
 
     # Retrieve device configuration profiles in Intune
     $windowsPolicies_Uri = "deviceManagement/configurationPolicies?`$filter=platforms has 'windows10'&`$expand=assignments,settings"
-    $windowsPolicies = Invoke-ZtGraphRequest -RelativeUri $windowsPolicies_Uri -ApiVersion beta
+    try {
+        $windowsPolicies = Invoke-ZtGraphRequest -RelativeUri $windowsPolicies_Uri -ApiVersion beta
+    }
+    catch {
+        $statusCode = $null
+        $responseProperty = $_.Exception.PSObject.Properties['Response']
+        if ($responseProperty -and $responseProperty.Value) {
+            try {
+                $statusCode = [int]$responseProperty.Value.StatusCode
+            }
+            catch {
+                $statusCode = $null
+            }
+        }
+
+        $message = $_.Exception.Message
+        if ($statusCode -in 401, 403, 404 -or $message -like '*Unauthorized*' -or $message -like '*Forbidden*' -or $message -like '*Not Found*') {
+            Write-PSFMessage "Unable to query Intune Windows configuration policies: $message" -Tag Test -Level Warning
+            Add-ZtTestResultDetail -SkippedBecause NotLicensedIntune
+            return
+        }
+
+        throw
+    }
 
     # Filter policies to include only those related to Windows BitLocker settings
     $windowsBitLockerPolicies = @()
